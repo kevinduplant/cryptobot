@@ -12,7 +12,7 @@ const BASE_ALLOCATION = 100;
 const TRADE_FEE = 0.075;
 const GRANULARITY = "5m";
 const GRANULARITIES = ["1m", "5m", "30m", "1h", "2h", "4h", "12h", "1d"];
-const TICKER = "VETUSDT"; // BTCUSDC AVAXUSDT  VETUSDT BNBUSDC  ETHUSDT
+// const TICKER = "VETUSDT"; // BTCUSDC AVAXUSDT  VETUSDT BNBUSDC  ETHUSDT
 
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -154,7 +154,7 @@ class CyberbotStrategy {
 class BankStrategy {
   constructor(_history, _entryData, wallet) {
     this.wallet = wallet;
-    this.name = "shad";
+    this.name = "bank";
   }
 
   save() {
@@ -305,7 +305,8 @@ class EntryOptimusStrategy {
         data.macd.MACD >= data.macd.signal) ||
         data.macd.MACD >= data.macd.signal) &&
       data.bb.upper > data.price &&
-      data.rsi <= 60
+      data.rsi <= 60 &&
+      data.price > previousData.price
     ) {
       console.log("MACD cross, RSI < 60");
       return true;
@@ -473,9 +474,17 @@ class Algorithm {
     this.fees += fee;
 
     if (this.entryData.price >= data.price) {
-      console.log("😱 LOOSE");
+      console.log("😱 LOOSE", {
+        buy: token * this.entryData.price,
+        sell: token * data.price,
+        loose: token * this.entryData.price - token * data.price,
+      });
     } else {
-      console.log("🥳 WIN");
+      console.log("🥳 WIN", {
+        buy: token * this.entryData.price,
+        sell: token * data.price,
+        win: token * data.price - token * this.entryData.price,
+      });
     }
 
     console.log("🔴 SELL", {
@@ -584,10 +593,11 @@ class Algorithm {
     const close = [...this.history.map((el) => el.close), data.close];
     const volume = [...this.history.map((el) => el.volume), data.volume];
 
-    const [ema4, ema9, ema20, ema50, rsi, bb, ichimoku, vp, macd] =
+    const [ema4, ema9, ema12, ema20, ema50, rsi, bb, ichimoku, vp, macd] =
       await Promise.all([
         this.ema(4, price),
         this.ema(9, price),
+        this.ema(12, price),
         this.ema(20, price),
         this.ema(50, price),
         this.rsi(14, price),
@@ -619,6 +629,7 @@ class Algorithm {
       ...data,
       ema4,
       ema9,
+      ema12,
       ema20,
       ema50,
       rsi,
@@ -700,7 +711,7 @@ async function main() {
   const tradingAlgorithm = new Algorithm(BASE_ALLOCATION, TRADE_FEE);
 
   while (1) {
-    const tickerPrice = await client.tickerPrice(TICKER);
+    const tickerPrice = await client.tickerPrice(ticker);
     const price = tickerPrice.data.price;
 
     await tradingAlgorithm.apply(parseFloat(price));
@@ -709,7 +720,7 @@ async function main() {
   }
 }
 
-async function test() {
+async function test(ticker) {
   const tradingAlgorithm = new Algorithm(BASE_ALLOCATION, TRADE_FEE);
   const historicalPrices = [];
   const dataDirectory = "./data/";
@@ -717,7 +728,7 @@ async function test() {
   const files = fs.readdirSync(dataDirectory);
 
   for (const file of files) {
-    if (file.startsWith(`${TICKER}-${GRANULARITY}`) && file.endsWith(`.csv`)) {
+    if (file.startsWith(`${ticker}-${GRANULARITY}`) && file.endsWith(`.csv`)) {
       await new Promise((resolve) => {
         fs.createReadStream(path.resolve(dataDirectory, file))
           .pipe(csv.parse())
@@ -773,7 +784,7 @@ async function test() {
   });
 }
 
-async function feed() {
+async function feed(ticker) {
   const dataDirectory = "./data/";
   let date = new Date("2021-03-01");
   const now = new Date();
@@ -785,14 +796,14 @@ async function feed() {
     var yyyy = date.getFullYear();
 
     for (const granularity of GRANULARITIES) {
-      const filename = `${TICKER}-${granularity}-${yyyy}-${mm}-${dd}`;
+      const filename = `${ticker}-${granularity}-${yyyy}-${mm}-${dd}`;
       const out = fs.createWriteStream(
         path.resolve(dataDirectory, `${filename}.zip`)
       );
 
       try {
         await https.get(
-          `https://data.binance.vision/data/spot/daily/klines/${TICKER}/${GRANULARITY}/${filename}.zip`,
+          `https://data.binance.vision/data/spot/daily/klines/${ticker}/${GRANULARITY}/${filename}.zip`,
           (response) => {
             //.pipe(zlib.createUnzip())
             response.pipe(out);
@@ -805,8 +816,23 @@ async function feed() {
 
     date = new Date(date.setTime(date.getTime() + 1 * 86400000));
   }
+
+  console.log(
+    "🤷‍♂️ Not able to unzip them, please use (cd ./data && unzip *.zip)"
+  );
 }
 
-// main();
-// feed();
-test().then(exit);
+if (!process.argv[2] || !process.argv[3]) {
+  console.log("Command $> yarn start [feed|test|trade] [VETUSDT|BTCUSDC|...]");
+}
+if (process.argv[2] === "trade") {
+  main(process.argv[1]);
+}
+
+if (process.argv[2] === "feed") {
+  feed(process.argv[1]);
+}
+
+if (process.argv[2] === "test") {
+  test(process.argv[1]).then(exit);
+}
