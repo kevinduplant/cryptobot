@@ -7,12 +7,8 @@ import csv from "fast-csv";
 import https from "https";
 import technicalindicators from "technicalindicators";
 
-const TIME_INTERVAL = 1 * 60 * 1000; // 1min
 const BASE_ALLOCATION = 100;
 const TRADE_FEE = 0.075;
-const GRANULARITY = "5m";
-const GRANULARITIES = ["1m", "5m", "30m", "1h", "2h", "4h", "12h", "1d"];
-// const TICKER = "VETUSDT"; // BTCUSDC AVAXUSDT  VETUSDT BNBUSDC  ETHUSDT
 
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -695,7 +691,7 @@ class Algorithm {
   }
 }
 
-async function main() {
+async function main(ticker, granularity) {
   const apiKey = process.env.BINANCE_API_KEY;
   const apiSecret = process.env.BINANCE_API_SECRET;
 
@@ -716,11 +712,12 @@ async function main() {
 
     await tradingAlgorithm.apply(parseFloat(price));
 
-    await sleep(TIME_INTERVAL);
+    // Convert granularity to ms
+    await sleep();
   }
 }
 
-async function test(ticker) {
+async function test(ticker, granularity) {
   const tradingAlgorithm = new Algorithm(BASE_ALLOCATION, TRADE_FEE);
   const historicalPrices = [];
   const dataDirectory = "./data/";
@@ -728,7 +725,7 @@ async function test(ticker) {
   const files = fs.readdirSync(dataDirectory);
 
   for (const file of files) {
-    if (file.startsWith(`${ticker}-${GRANULARITY}`) && file.endsWith(`.csv`)) {
+    if (file.startsWith(`${ticker}-${granularity}`) && file.endsWith(`.csv`)) {
       await new Promise((resolve) => {
         fs.createReadStream(path.resolve(dataDirectory, file))
           .pipe(csv.parse())
@@ -784,7 +781,7 @@ async function test(ticker) {
   });
 }
 
-async function feed(ticker) {
+async function feed(ticker, granularity) {
   const dataDirectory = "./data/";
   let date = new Date("2021-03-01");
   const now = new Date();
@@ -795,24 +792,24 @@ async function feed(ticker) {
     var mm = String(date.getMonth() + 1).padStart(2, "0");
     var yyyy = date.getFullYear();
 
-    for (const granularity of GRANULARITIES) {
-      const filename = `${ticker}-${granularity}-${yyyy}-${mm}-${dd}`;
-      const out = fs.createWriteStream(
-        path.resolve(dataDirectory, `${filename}.zip`)
-      );
+    // for (const granularity of GRANULARITIES) {
+    const filename = `${ticker}-${granularity}-${yyyy}-${mm}-${dd}`;
+    const out = fs.createWriteStream(
+      path.resolve(dataDirectory, `${filename}.zip`)
+    );
 
-      try {
-        await https.get(
-          `https://data.binance.vision/data/spot/daily/klines/${ticker}/${GRANULARITY}/${filename}.zip`,
-          (response) => {
-            //.pipe(zlib.createUnzip())
-            response.pipe(out);
-          }
-        );
-      } catch (error) {
-        console.log(error);
-      }
+    try {
+      await https.get(
+        `https://data.binance.vision/data/spot/daily/klines/${ticker}/${granularity}/${filename}.zip`,
+        (response) => {
+          //.pipe(zlib.createUnzip())
+          response.pipe(out);
+        }
+      );
+    } catch (error) {
+      console.log(error);
     }
+    // }
 
     date = new Date(date.setTime(date.getTime() + 1 * 86400000));
   }
@@ -822,17 +819,19 @@ async function feed(ticker) {
   );
 }
 
-if (!process.argv[2] || !process.argv[3]) {
-  console.log("Command $> yarn start [feed|test|trade] [VETUSDT|BTCUSDC|...]");
+if (!process.argv[2] || !process.argv[3] || !process.argv[4]) {
+  console.log(
+    "Command $> yarn start [feed|test|trade] [VETUSDT|BTCUSDC|...] [1m|5m|1h|1d|1w|...]"
+  );
 }
 if (process.argv[2] === "trade") {
-  main(process.argv[1]);
+  main(process.argv[3], process.argv[4]);
 }
 
 if (process.argv[2] === "feed") {
-  feed(process.argv[1]);
+  feed(process.argv[3], process.argv[4]);
 }
 
 if (process.argv[2] === "test") {
-  test(process.argv[1]).then(exit);
+  test(process.argv[3], process.argv[4]).then(exit);
 }
