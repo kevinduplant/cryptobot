@@ -1,0 +1,6 @@
+data/*
+output
+node_modules
+logs
+yarn-error.log
+.DS_Store
