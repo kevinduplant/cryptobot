@@ -60,7 +60,7 @@ async function test(ticker, granularity, allocation) {
     });
   }
 
-  if (strategy.wallet.token) {
+  if (strategy.wallet.token || strategy.wallet.short || strategy.wallet.long) {
     await strategy.sell("none");
   }
 

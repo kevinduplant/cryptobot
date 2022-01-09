@@ -5,8 +5,6 @@ import { CyberbotStrategy } from "./cyberbot.js";
 import { MeanReversionStrategy } from "./meanReversion.js";
 import { LamboStrategy } from "./lambo.js";
 
-const BASE_ALLOCATION = 100;
-
 export class BaseStrategy {
   constructor(allocation, tradeFee) {
     this.allocation = allocation;
@@ -22,6 +20,10 @@ export class BaseStrategy {
     this.fees = 0;
     this.entryData = {};
     this.history = [];
+
+    this.strategies = [
+      new LamboStrategy(this.history, this.entryData, this.wallet),
+    ];
   }
 
   async save(stategy, allocation) {
@@ -48,7 +50,7 @@ export class BaseStrategy {
     //   wallet: this.wallet,
     //   fee,
     //   benefice:
-    //     this.wallet.token * data.price - BASE_ALLOCATION + this.wallet.bank,
+    //     this.wallet.token * data.price - this.allocation + this.wallet.bank,
     //   strategy: strategy.name,
     //   ...data,
     // });
@@ -57,7 +59,7 @@ export class BaseStrategy {
       ...data,
       wallet: this.wallet,
       fee,
-      benefice: this.wallet.stable - BASE_ALLOCATION + this.wallet.bank,
+      benefice: this.wallet.stable - this.allocation + this.wallet.bank,
       algo: strategy.name,
     };
   }
@@ -101,8 +103,8 @@ export class BaseStrategy {
       exit: data.price,
       wallet: this.wallet,
       fee,
-      benefice: this.wallet.stable - BASE_ALLOCATION + this.wallet.bank,
-      strategy: strategy.name,
+      benefice: this.wallet.stable - this.allocation + this.wallet.bank,
+      algo: strategy.name,
       ...data,
     });
   }
@@ -141,8 +143,8 @@ export class BaseStrategy {
       wallet: this.wallet,
       fee,
       benefice:
-        this.wallet.long * data.price - BASE_ALLOCATION + this.wallet.bank,
-      strategy: strategy.name,
+        this.wallet.long * data.price - this.allocation + this.wallet.bank,
+      algo: strategy.name,
       ...data,
     });
 
@@ -172,13 +174,20 @@ export class BaseStrategy {
     }
 
     console.log("👉 CLOSE LONG");
+
+    // TODO: Fix save here
+    // const save = this.strategies.find((strategy) => strategy.save(this.allocation));
+    // if (save) {
+    //   await this.save(save);
+    // }
+
     console.log("🛬 SHORT", {
       entry: this.entryData,
       exit: data.price,
       wallet: this.wallet,
       fee,
       benefice:
-        this.wallet.short * data.price - BASE_ALLOCATION + this.wallet.bank,
+        this.wallet.short * data.price - this.allocation + this.wallet.bank,
       strategy: strategy.name,
       ...data,
     });
@@ -208,13 +217,17 @@ export class BaseStrategy {
 
     const [
       sma4,
+      sma7,
       sma9,
       sma12,
+      sma14,
       sma20,
       sma50,
       ema4,
+      ema7,
       ema9,
       ema12,
+      ema14,
       ema20,
       ema50,
       rsi,
@@ -224,15 +237,21 @@ export class BaseStrategy {
       macd,
       stochastic,
       heikinashi,
+      roc,
+      atr,
     ] = await Promise.all([
       indicator.sma(4, price),
+      indicator.sma(7, price),
       indicator.sma(9, price),
       indicator.sma(12, price),
+      indicator.sma(14, price),
       indicator.sma(20, price),
       indicator.sma(50, price),
       indicator.ema(4, price),
+      indicator.ema(7, price),
       indicator.ema(9, price),
       indicator.ema(12, price),
+      indicator.ema(14, price),
       indicator.ema(20, price),
       indicator.ema(50, price),
       indicator.rsi(14, price),
@@ -268,18 +287,24 @@ export class BaseStrategy {
         close
       ),
       indicator.heikinashi(low, high, open, close, volume, date),
+      indicator.roc(14, price),
+      indicator.atr(14, low, high, close),
     ]);
 
     this.history.push({
       ...data,
       sma4,
+      sma7,
       sma9,
       sma12,
+      sma14,
       sma20,
       sma50,
       ema4,
+      ema7,
       ema9,
       ema12,
+      ema14,
       ema20,
       ema50,
       rsi,
@@ -289,6 +314,8 @@ export class BaseStrategy {
       macd,
       stochastic,
       heikinashi,
+      roc,
+      atr,
     });
   }
 
@@ -298,7 +325,7 @@ export class BaseStrategy {
     console.log({
       ...data,
       benefice: this.wallet.stable
-        ? this.wallet.stable - BASE_ALLOCATION + this.wallet.bank
+        ? this.wallet.stable - this.allocation + this.wallet.bank
         : this.wallet.token * data.price,
     });
   }
@@ -310,39 +337,38 @@ export class BaseStrategy {
 
     // this.printData();
 
-    if (len <= 50) {
+    // We need 52 period for Ichimoku
+    if (len < 53) {
       return;
     }
 
-    const strategies = [
-      new BankStrategy(this.history, this.entryData, this.wallet),
-      // new CyberbotStrategy(this.history, this.entryData, this.wallet),
-      // new MeanReversionStrategy(this.history, this.entryData, this.wallet),
-      new EntryOptimusStrategy(this.history, this.entryData, this.wallet),
-      // new LamboStrategy(this.history, this.entryData, this.wallet),
+    this.strategies = [
+      new LamboStrategy(this.history, this.entryData, this.wallet),
     ];
 
-    const exitStrategy = strategies.find((strategy) => strategy.exit());
-    if (exitStrategy) {
-      if (exitStrategy.buyStrategy === "spot") {
-        await this.sell(exitStrategy);
+    const exit = this.strategies.find((strategy) => strategy.exit());
+    if (exit) {
+      if (exit.buyStrategy === "spot") {
+        await this.sell(exit);
       } else {
-        await this.short(exitStrategy);
+        await this.short(exit);
       }
     }
 
-    const entryStrategy = strategies.find((strategy) => strategy.entry());
-    if (entryStrategy) {
-      if (entryStrategy.buyStrategy === "spot") {
-        await this.buy(entryStrategy);
+    const entry = this.strategies.find((strategy) => strategy.entry());
+    if (entry) {
+      if (entry.buyStrategy === "spot") {
+        await this.buy(entry);
       } else {
-        await this.long(entryStrategy);
+        await this.long(entry);
       }
     }
 
-    const saveStrategy = strategies.find((strategy) => strategy.save());
-    if (saveStrategy) {
-      await this.save(saveStrategy);
+    const save = this.strategies.find((strategy) =>
+      strategy.save(this.allocation)
+    );
+    if (save) {
+      await this.save(save);
     }
   }
 }

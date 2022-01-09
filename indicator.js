@@ -83,3 +83,23 @@ export async function heikinashi(low, high, open, close, volume, timestamp) {
     volume: heikinashi.volume[heikinashi.volume.length - 1],
   };
 }
+
+export async function roc(period, values) {
+  const roc = technicalindicators.roc({
+    values,
+    period,
+  });
+
+  return roc[roc.length - 1];
+}
+
+export async function atr(period, low, high, close) {
+  const atr = technicalindicators.atr({
+    low,
+    high,
+    close,
+    period,
+  });
+
+  return atr[atr.length - 1];
+}

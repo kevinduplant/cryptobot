@@ -1,6 +1,6 @@
 # Requirement
 
-Node 14+
+Node 14+ and yarn
 
 # Install
 
