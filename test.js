@@ -7,10 +7,8 @@ const BASE_ALLOCATION = 100;
 const TRADE_FEE = 0.075;
 
 async function test(ticker, granularity, allocation) {
-  const strategy = new BaseStrategy(
-    allocation ? parseFloat(allocation) : BASE_ALLOCATION,
-    TRADE_FEE
-  );
+  const stable = allocation ? parseFloat(allocation) : BASE_ALLOCATION;
+  const strategy = new BaseStrategy(stable, TRADE_FEE);
   const historicalPrices = [];
   const dataDirectory = `./data/${ticker}/${granularity}`;
 
@@ -61,11 +59,11 @@ async function test(ticker, granularity, allocation) {
   }
 
   if (strategy.wallet.token || strategy.wallet.short || strategy.wallet.long) {
-    await strategy.sell("none");
+    await strategy.sellSpot("none");
   }
 
   console.log("🎉 End", {
-    benefice: strategy.wallet.stable - BASE_ALLOCATION + strategy.wallet.bank,
+    benefice: strategy.wallet.stable - stable + strategy.wallet.bank,
     fees: strategy.fees,
   });
 }

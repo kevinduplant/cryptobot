@@ -33,11 +33,26 @@ export class LamboStrategy {
 
     // Stop loss (set to 5 ATR under bought price) - Only if we do not short the market
     if (
-      !this.wallet.short &&
+      this.wallet.long &&
       data.heikinashi.close <=
         this.entryData.heikinashi.close - this.entryData.atr * 5
     ) {
-      console.log("💀 STOP LOSS");
+      console.log("💀 LONG STOP LOSS", {
+        entry: this.entryData.price,
+        stopLoss: this.entryData.heikinashi.close - this.entryData.atr * 5,
+      });
+      return true;
+    }
+
+    if (
+      this.wallet.short &&
+      data.heikinashi.close >=
+        this.entryData.heikinashi.close - this.entryData.atr * 5
+    ) {
+      console.log("💀 SHORT STOP LOSS", {
+        entry: this.entryData.price,
+        stopLoss: this.entryData.heikinashi.close - this.entryData.atr * 5,
+      });
       return true;
     }
 
@@ -71,12 +86,11 @@ export class LamboStrategy {
     // ROC divergence with price
     // TODO: Find a better way to calculate it (take last 4 period ?)
     if (previousData.price > data.price && previousData.roc < data.roc) {
-      score += 1;
+      score += 0.5;
     }
 
-    // RSI is overbought (>= 70)
-    // TODO: Test with 75, crypto market often go way over 70
-    if (data.rsi >= 70) {
+    // RSI is overbought (>= 75)
+    if (data.rsi >= 75) {
       score += 1;
     }
 
@@ -93,7 +107,7 @@ export class LamboStrategy {
     }
 
     // Price go down
-    // TODO: Review it on multiple period
+    // TODO: Find a better way to calculate it (take last 4 period ?)
     if (previousData.price > data.price) {
       score += 1;
     }
@@ -113,9 +127,6 @@ export class LamboStrategy {
     ) {
       score += 1;
     }
-
-    // Heiken ashi
-    // Stochastic
 
     // Stochastic K line cross below D line (K < D)
     if (
@@ -164,11 +175,16 @@ export class LamboStrategy {
       score += 1;
     }
 
-    if (score >= 6) {
-      console.log("🚪🚪🚪🚪 ", score);
+    // If Stop and Reverse is bellow the current price
+    if (data.psar <= data.price) {
+      score += 1;
     }
 
-    return score >= 10;
+    if (score >= 11) {
+      console.log("📉📉 ", { score });
+    }
+
+    return score >= 11;
   }
 
   entry() {
@@ -242,7 +258,7 @@ export class LamboStrategy {
     }
 
     // Price go up
-    // TODO: Review it on multiple period
+    // TODO: Find a better way to calculate it (take last 4 period ?)
     if (previousData.price < data.price) {
       score += 0.5;
     }
@@ -264,10 +280,6 @@ export class LamboStrategy {
     ) {
       score += 0.5;
     }
-
-    // Heiken ashi
-    // Stochastic
-    // Ichimoku
 
     // Stochastic K line cross below D line (K < D)
     if (
@@ -317,10 +329,15 @@ export class LamboStrategy {
       score += 1;
     }
 
-    if (score >= 8) {
-      console.log("🎫🎫🎫🎫 ", score);
+    // If Stop and Reverse is above the price
+    if (data.psar >= data.price) {
+      score += 1;
     }
 
-    return score >= 12;
+    if (score >= 13) {
+      console.log("📈📈 ", { score });
+    }
+
+    return score >= 13;
   }
 }

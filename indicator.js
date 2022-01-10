@@ -103,3 +103,14 @@ export async function atr(period, low, high, close) {
 
   return atr[atr.length - 1];
 }
+
+export async function psar(step, max, high, low) {
+  const psar = technicalindicators.psar({
+    step,
+    max,
+    high,
+    low,
+  });
+
+  return psar[psar.length - 1];
+}
