@@ -4,7 +4,7 @@ import { sleep } from "./util.js";
 const BASE_ALLOCATION = 100;
 const TRADE_FEE = 0.075;
 
-async function trade(ticker, granularity, allocation) {
+async function trade(name, market, ticker, granularity, allocation) {
   const apiKey = process.env.BINANCE_API_KEY;
   const apiSecret = process.env.BINANCE_API_SECRET;
 
@@ -13,7 +13,9 @@ async function trade(ticker, granularity, allocation) {
   // Get account information
   const account = await client.account();
 
-  const tradingAlgorithm = new Algorithm(
+  const tradingAlgorithm = new BaseStrategy(
+    name,
+    market,
     allocation ? parseFloat(allocation) : BASE_ALLOCATION,
     TRADE_FEE
   );
@@ -29,9 +31,14 @@ async function trade(ticker, granularity, allocation) {
   }
 }
 
-if (!process.argv[2] || !process.argv[3] || !process.argv[4]) {
+if (
+  !process.argv[2] ||
+  !process.argv[3] ||
+  !process.argv[4] ||
+  !process.argv[5]
+) {
   console.log(
-    "Command $> yarn [feed|test|trade] [VETUSDT|BTCUSDC|...] [1m|5m|1h|1d|1w|...] ([allocation])"
+    "Command $> yarn [lambo] [spot|margin] [feed|test|trade] [VETUSDT|BTCUSDC|...] [1m|5m|1h|1d|1w|...] ([allocation])"
   );
 }
 if (process.argv[2] === "trade") {

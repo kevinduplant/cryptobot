@@ -3,7 +3,6 @@ export class LamboStrategy {
     this.wallet = wallet;
     this.entryData = entryData;
     this.history = history;
-    this.buyStrategy = "margin";
     this.name = "lambo";
   }
 
@@ -16,24 +15,20 @@ export class LamboStrategy {
     return 0;
   }
 
-  exit() {
+  short() {
     const len = this.history.length;
     const data = this.history[len - 1];
     const previousData = this.history[len - 2];
 
+    if (this.entryData.price === undefined) {
+      this.entryData = previousData;
+    }
+
     let score = 0;
-
-    if (!this.wallet.token && !this.wallet.long) {
-      return false;
-    }
-
-    if (this.entryData.algo !== "lambo") {
-      return false;
-    }
 
     // Stop loss (set to 5 ATR under bought price) - Only if we do not short the market
     if (
-      this.wallet.long &&
+      (this.wallet.long || this.wallet.token) &&
       data.heikinashi.close <=
         this.entryData.heikinashi.close - this.entryData.atr * 5
     ) {
@@ -41,19 +36,7 @@ export class LamboStrategy {
         entry: this.entryData.price,
         stopLoss: this.entryData.heikinashi.close - this.entryData.atr * 5,
       });
-      return true;
-    }
-
-    if (
-      this.wallet.short &&
-      data.heikinashi.close >=
-        this.entryData.heikinashi.close - this.entryData.atr * 5
-    ) {
-      console.log("💀 SHORT STOP LOSS", {
-        entry: this.entryData.price,
-        stopLoss: this.entryData.heikinashi.close - this.entryData.atr * 5,
-      });
-      return true;
+      score += 5;
     }
 
     // Take profit (set to 2 ATR over bought price)
@@ -180,22 +163,36 @@ export class LamboStrategy {
       score += 1;
     }
 
-    if (score >= 11) {
-      console.log("📉📉 ", { score });
-    }
-
-    return score >= 11;
+    return {
+      score,
+      openShort: score >= 11 && score <= 13,
+      closeShort: score <= 5,
+    };
   }
 
-  entry() {
+  long() {
     const len = this.history.length;
     const data = this.history[len - 1];
     const previousData = this.history[len - 2];
 
+    if (this.entryData.price) {
+      this.entryData = previousData;
+    }
+
     let score = 0;
 
-    if (!this.wallet.stable && !this.wallet.short) {
-      return false;
+    // Stop loss (set to 5 ATR under bought price) - Only if we do not short the market
+    if (
+      this.wallet.short &&
+      data.heikinashi.close >=
+        this.entryData.heikinashi.close + this.entryData.atr * 8
+    ) {
+      console.log("💀 SHORT STOP LOSS", {
+        entry: this.entryData.price,
+        price: data.price,
+        stopLoss: this.entryData.heikinashi.close - this.entryData.atr * 8,
+      });
+      score += 5;
     }
 
     // MACD cross bullish - Or is already bullish
@@ -334,10 +331,10 @@ export class LamboStrategy {
       score += 1;
     }
 
-    if (score >= 13) {
-      console.log("📈📈 ", { score });
-    }
-
-    return score >= 13;
+    return {
+      score,
+      openLong: score >= 12 && score <= 13,
+      closeLong: score <= 0,
+    };
   }
 }

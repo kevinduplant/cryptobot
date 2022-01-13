@@ -8,28 +8,64 @@ import { LamboStrategy } from "./lambo.js";
 // TODO: Implement Risk/Reward (with leverage ?)
 // TODO: Exit strategy based on entry score ?
 // TODO: Play with entry/exit score to have something more and more relevant
+// TODO: "Machine learning" about results (we might need to split lambo strategy into sub-strategies)
+
+const strategyFactory = {
+  entryOptimus: EntryOptimusStrategy,
+  bank: BankStrategy,
+  cyberbot: CyberbotStrategy,
+  meanReversion: MeanReversionStrategy,
+  lambo: LamboStrategy,
+};
 
 export class BaseStrategy {
-  constructor(allocation, tradeFee) {
+  constructor(strategy, market, allocation, tradeFee) {
+    if (!strategyFactory[strategy]) {
+      throw new Error("🚨 Unknown strategy", {
+        strategy,
+        strategies: Object.keys(strategyFactory),
+      });
+    }
+
+    if (!["margin", "spot"].includes(market)) {
+      throw new Error("🚨 Unknown market", { market });
+    }
+
     this.allocation = allocation;
+    this.strategy = strategy;
     this.wallet = {
       stable: allocation,
-      token: 0,
       bank: 0,
       long: 0,
       short: 0,
     };
     this.tradeFee = tradeFee;
+    this.market = market;
 
     this.fees = 0;
     this.entryData = {};
     this.history = [];
 
-    this.strategies = [];
+    this.analysis = {
+      loose: [],
+      win: [],
+      long: {
+        win: [],
+        loose: [],
+      },
+      short: {
+        win: [],
+        loose: [],
+      },
+    };
   }
 
-  async save(stategy, allocation) {
-    const amount = stategy.save(allocation);
+  async save(strategy) {
+    const amount = await strategy.save(this.allocation);
+
+    if (amount <= 0) {
+      return;
+    }
 
     this.wallet.stable -= amount;
     this.wallet.bank += amount;
@@ -42,12 +78,11 @@ export class BaseStrategy {
 
     const fee = (this.wallet.stable * this.tradeFee) / 100;
 
-    this.wallet.token = (this.wallet.stable - fee) / data.price;
+    this.wallet.long = (this.wallet.stable - fee) / data.price;
     this.wallet.stable = 0;
 
     this.fees += fee;
 
-    console.log("");
     console.log("🛫 BUY", data.date);
 
     this.entryData = {
@@ -59,39 +94,40 @@ export class BaseStrategy {
     };
   }
 
-  async sellSpot(strategy) {
+  async sellSpot() {
     const data = this.history[this.history.length - 1];
-
-    const token = this.wallet.token
-      ? this.wallet.token
-      : this.wallet.short
-      ? this.wallet.short
-      : this.wallet.long
-      ? this.wallet.long
-      : 0;
-
-    this.wallet.stable = token * data.price;
-    this.wallet.token = 0;
-
     const fee = (this.wallet.stable * this.tradeFee) / 100;
 
-    this.wallet.stable -= fee;
+    if (this.wallet.short) {
+      this.closeShort();
+      return;
+    }
 
-    this.fees += fee;
-
+    const benefice = (
+      this.wallet.long * data.price -
+      this.wallet.long * this.entryData.price
+    ).toFixed(2);
     if (this.entryData.price >= data.price) {
+      this.analysis.loose.push(benefice);
+      this.analysis.long.loose.push(this.entryData.long.score);
       console.log("❌ LOOSE", {
-        buy: (token * this.entryData.price).toFixed(5),
-        sell: (token * data.price).toFixed(5),
-        loose: (token * this.entryData.price - token * data.price).toFixed(2),
+        buy: (this.wallet.long * this.entryData.price).toFixed(5),
+        sell: (this.wallet.long * data.price).toFixed(5),
+        loose: benefice,
       });
     } else {
+      this.analysis.win.push(benefice);
+      this.analysis.long.win.push(this.entryData.long.score);
       console.log("✅ WIN", {
-        buy: (token * this.entryData.price).toFixed(5),
-        sell: (token * data.price).toFixed(5),
-        win: (token * data.price - token * this.entryData.price).toFixed(2),
+        buy: (this.wallet.long * this.entryData.price).toFixed(5),
+        sell: (this.wallet.long * data.price).toFixed(5),
+        win: benefice,
       });
     }
+
+    this.wallet.stable = this.wallet.long * data.price - fee;
+    this.wallet.long = 0;
+    this.fees += fee;
 
     console.log("🔴 EXIT POSITION", {
       buy: this.entryData.price,
@@ -108,7 +144,6 @@ export class BaseStrategy {
 
     this.fees += fee;
 
-    console.log("");
     console.log("🛫 OPEN LONG", data.date);
 
     this.entryData = {
@@ -127,38 +162,32 @@ export class BaseStrategy {
 
     this.fees += fee;
 
-    console.log("🚪 CLOSE LONG", data.date);
+    console.log("🚪 CLOSE LONG", { date: data.date, price: data.price });
 
     const buy = this.entryData.wallet.long * this.entryData.price;
     const sell = this.wallet.long * data.price - fee;
 
+    const benefice = (sell - buy).toFixed(2);
     if (this.entryData.price >= data.price) {
+      this.analysis.loose.push(benefice);
+      this.analysis.long.loose.push(this.entryData.long.score);
       console.log("❌ LOOSE", {
         buy: buy.toFixed(5),
         sell: sell.toFixed(5),
-        loose: (sell - buy).toFixed(2),
+        loose: benefice,
       });
     } else if (this.entryData.wallet) {
+      this.analysis.win.push(benefice);
+      this.analysis.long.win.push(this.entryData.long.score);
       console.log("✅ WIN", {
         buy: buy.toFixed(5),
         sell: sell.toFixed(5),
-        win: (sell - buy).toFixed(2),
+        win: benefice,
       });
     }
 
     this.wallet.stable = sell;
     this.wallet.long = 0;
-
-    // TODO: Find better way to instanciate it
-    this.strategies = [
-      new LamboStrategy(this.history, this.entryData, this.wallet),
-    ];
-    const save = this.strategies.find((strategy) =>
-      strategy.save(this.allocation)
-    );
-    if (save) {
-      await this.save(save, this.allocation);
-    }
   }
 
   async openShort(strategy) {
@@ -170,7 +199,6 @@ export class BaseStrategy {
 
     this.fees += fee;
 
-    console.log("");
     console.log("🛬 OPEN SHORT", data.date);
 
     this.entryData = {
@@ -190,7 +218,7 @@ export class BaseStrategy {
 
     this.fees += fee;
 
-    console.log("🚪 CLOSE SHORT", data.date);
+    console.log("🚪 CLOSE SHORT", { date: data.date, price: data.price });
 
     const buy = this.wallet.short * this.entryData.price;
     const sell =
@@ -198,33 +226,27 @@ export class BaseStrategy {
       (this.entryData.price + (this.entryData.price - data.price)) -
       fee;
 
+    const benefice = (buy - sell).toFixed(2);
     if (this.entryData.price <= data.price) {
+      this.analysis.loose.push(benefice);
+      this.analysis.short.loose.push(this.entryData.short.score);
       console.log("❌ LOOSE", {
         buy: buy.toFixed(5),
         sell: sell.toFixed(5),
-        loose: (buy - sell).toFixed(2),
+        loose: benefice,
       });
     } else if (this.entryData.wallet) {
+      this.analysis.win.push(benefice);
+      this.analysis.short.win.push(this.entryData.short.score);
       console.log("✅ WIN", {
         buy: buy.toFixed(5),
         sell: sell.toFixed(5),
-        win: (buy - sell).toFixed(2),
+        win: benefice,
       });
     }
 
     this.wallet.stable = sell;
     this.wallet.short = 0;
-
-    // TODO: Find better way to instanciate it
-    this.strategies = [
-      new LamboStrategy(this.history, this.entryData, this.wallet),
-    ];
-    const save = this.strategies.find((strategy) =>
-      strategy.save(this.allocation)
-    );
-    if (save) {
-      await this.save(save, this.allocation);
-    }
   }
 
   async indicators(data) {
@@ -353,13 +375,7 @@ export class BaseStrategy {
 
   printData() {
     const data = this.history[this.history.length - 1];
-    // console.log(data.date);
-    console.log({
-      ...data,
-      benefice: this.wallet.stable
-        ? this.wallet.stable - this.allocation + this.wallet.bank
-        : this.wallet.token * data.price,
-    });
+    console.log(data);
   }
 
   async apply(data) {
@@ -374,35 +390,75 @@ export class BaseStrategy {
       return;
     }
 
-    this.strategies = [
-      new LamboStrategy(this.history, this.entryData, this.wallet),
-    ];
-
-    const exit = this.strategies.find((strategy) => strategy.exit());
-    if (exit) {
-      if (exit.buyStrategy === "spot") {
-        await this.sellSpot(exit);
-      } else if (exit.buyStrategy === "margin") {
-        await this.closeLong(exit);
-        await this.openShort(exit);
-      }
-    }
-
-    const entry = this.strategies.find((strategy) => strategy.entry());
-    if (entry) {
-      if (entry.buyStrategy === "spot") {
-        await this.buySpot(entry);
-      } else if (entry.buyStrategy === "margin") {
-        await this.closeShort(entry);
-        await this.openLong(entry);
-      }
-    }
-
-    const save = this.strategies.find((strategy) =>
-      strategy.save(this.allocation)
+    const strategy = new strategyFactory[this.strategy](
+      this.history,
+      this.entryData,
+      this.wallet
     );
-    if (save) {
-      await this.save(save, this.allocation);
+
+    const short = await strategy.short();
+    const long = await strategy.long();
+
+    if (
+      (!this.wallet.long && long.openLong) ||
+      (this.wallet.long && (long.closeLong || long.stopLoss))
+    ) {
+      console.log("📈📈 ", { long, price: data.price });
+    }
+    if (
+      (!this.wallet.short && short.openShort) ||
+      (this.wallet.short && (short.closeShort || short.stopLoss))
+    ) {
+      console.log("📉📉 ", { short, price: data.price });
+    }
+
+    if (this.market === "spot") {
+      // Sell signal && Take profit
+      if (
+        this.wallet.long &&
+        (short.stopLoss || short.openShort || long.closeLong)
+      ) {
+        this.history[this.history.length - 1].short = short;
+        await this.sellSpot(strategy);
+        await this.save(strategy);
+      }
+
+      // Buy signal
+      if (this.wallet.stable && long.openLong) {
+        this.history[this.history.length - 1].long = long;
+        await this.buySpot(strategy);
+      }
+    }
+
+    if (this.market === "margin") {
+      // Sell signal && Take profit
+      if (
+        this.wallet.long &&
+        (short.stopLoss || short.openShort || long.closeLong)
+      ) {
+        await this.closeLong(strategy);
+        await this.save(strategy);
+      }
+
+      // Sell signal && Take profit
+      if (
+        this.wallet.short &&
+        (long.stopLoss || long.openLong || short.closeShort)
+      ) {
+        await this.closeShort(strategy);
+        await this.save(strategy);
+      }
+
+      // Buy signal
+      if (this.wallet.stable && short.openShort) {
+        this.history[this.history.length - 1].short = short;
+        await this.openShort(strategy);
+      }
+
+      if (this.wallet.stable && long.openLong) {
+        this.history[this.history.length - 1].long = long;
+        await this.openLong(strategy);
+      }
     }
   }
 }
