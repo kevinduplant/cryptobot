@@ -90,7 +90,7 @@ async function test(name, market, ticker, granularity, allocation) {
       ),
       max: Math.max(...win),
       min: Math.min(...win),
-      total: win.reduce((a, b) => a + b).toFixed(2),
+      total: win.reduce((a, b) => a + b, 0).toFixed(2),
     },
     long: {
       win: {

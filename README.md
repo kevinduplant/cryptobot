@@ -23,7 +23,7 @@ It will get all BTCUSDT data with a 5 minutes granularity. All the files are sto
 Then run the test:
 
 ```
-yarn test [VETUSDT|BTCUSDC|...] [1m|5m|1h|1d|1w|...] ([allocation])
+yarn test [lambo] [margin|spot] [VETUSDT|BTCUSDC|...] [1m|5m|1h|1d|1w|...] ([allocation])
 ```
 
 Example:
@@ -41,3 +41,5 @@ To trade, the command is the similar to backtest, except you need to specify you
 ```
 BINANCE_API_KEY=xxx BINANCE_API_SECRET=xxx yarn trade BTCUSDT 5m 100
 ```
+
+# Indicators

@@ -18,6 +18,7 @@ const strategyFactory = {
   lambo: LamboStrategy,
 };
 
+const TRUST_LEVEL = 4;
 export class BaseStrategy {
   constructor(strategy, market, allocation, tradeFee) {
     if (!strategyFactory[strategy]) {
@@ -58,6 +59,24 @@ export class BaseStrategy {
         loose: [],
       },
     };
+
+    this.learn = {
+      win: [],
+      loose: [],
+    };
+  }
+
+  async trust(object, state) {
+    return (
+      object.filter(
+        (e) =>
+          e === Buffer.from(JSON.stringify(state), "utf-8").toString("base64")
+      ).length >= TRUST_LEVEL
+    );
+  }
+
+  async encode(object) {
+    return Buffer.from(JSON.stringify(object), "utf-8").toString("base64");
   }
 
   async save(strategy) {
@@ -110,6 +129,8 @@ export class BaseStrategy {
     if (this.entryData.price >= data.price) {
       this.analysis.loose.push(benefice);
       this.analysis.long.loose.push(this.entryData.long.score);
+      this.learn.loose.push(this.encode(this.entryData.long.state));
+
       console.log("❌ LOOSE", {
         buy: (this.wallet.long * this.entryData.price).toFixed(5),
         sell: (this.wallet.long * data.price).toFixed(5),
@@ -118,6 +139,8 @@ export class BaseStrategy {
     } else {
       this.analysis.win.push(benefice);
       this.analysis.long.win.push(this.entryData.long.score);
+      this.learn.win.push(this.encode(this.entryData.long.state));
+
       console.log("✅ WIN", {
         buy: (this.wallet.long * this.entryData.price).toFixed(5),
         sell: (this.wallet.long * data.price).toFixed(5),
@@ -171,6 +194,8 @@ export class BaseStrategy {
     if (this.entryData.price >= data.price) {
       this.analysis.loose.push(benefice);
       this.analysis.long.loose.push(this.entryData.long.score);
+      this.learn.loose.push(this.encode(this.entryData.long.state));
+
       console.log("❌ LOOSE", {
         buy: buy.toFixed(5),
         sell: sell.toFixed(5),
@@ -179,6 +204,8 @@ export class BaseStrategy {
     } else if (this.entryData.wallet) {
       this.analysis.win.push(benefice);
       this.analysis.long.win.push(this.entryData.long.score);
+      this.learn.win.push(this.encode(this.entryData.long.state));
+
       console.log("✅ WIN", {
         buy: buy.toFixed(5),
         sell: sell.toFixed(5),
@@ -230,6 +257,7 @@ export class BaseStrategy {
     if (this.entryData.price <= data.price) {
       this.analysis.loose.push(benefice);
       this.analysis.short.loose.push(this.entryData.short.score);
+      this.learn.loose.push(this.encode(this.entryData.short.state));
       console.log("❌ LOOSE", {
         buy: buy.toFixed(5),
         sell: sell.toFixed(5),
@@ -238,6 +266,7 @@ export class BaseStrategy {
     } else if (this.entryData.wallet) {
       this.analysis.win.push(benefice);
       this.analysis.short.win.push(this.entryData.short.score);
+      this.learn.win.push(this.encode(this.entryData.short.state));
       console.log("✅ WIN", {
         buy: buy.toFixed(5),
         sell: sell.toFixed(5),
@@ -251,7 +280,7 @@ export class BaseStrategy {
 
   async indicators(data) {
     // Keep only what is needed for technical indicators
-    if (this.history.length >= 200) {
+    if (this.history.length >= 120) {
       this.history = this.history.slice(50, this.history.length);
     }
 
@@ -267,6 +296,21 @@ export class BaseStrategy {
     ];
 
     const [
+      // Momentum Indicator
+      // ------------------------------------
+      ao,
+      adx,
+      mfi,
+      rsi,
+      ichimoku,
+      vp,
+      macd,
+      stochastic,
+      roc,
+      atr,
+      // Overlap Studies
+      // ------------------------------------
+      psar,
       sma4,
       sma7,
       sma9,
@@ -279,35 +323,51 @@ export class BaseStrategy {
       ema9,
       ema12,
       ema14,
+      ema18,
       ema20,
       ema50,
-      rsi,
       bb,
-      ichimoku,
-      vp,
-      macd,
-      stochastic,
+      // Chart type
+      // ------------------------------------
+      // Heikinashi stategy
       heikinashi,
-      roc,
-      atr,
-      psar,
+      // Pattern Recognition - Bullish/Bearish candlestick patterns
+      // ------------------------------------
+      spinningTop,
+      engulfingPattern,
+      harami,
+      marubozu,
+      // Pattern Recognition - Bearish candlestick patterns
+      // ------------------------------------
+      abandonedBaby,
+      hangingMan,
+      shootingStar,
+      gravestoneDoji,
+      darkCloudCover,
+      eveningDojiStar,
+      eveningStar,
+      threeBlackCrows,
+      // Pattern Recognition - Bullish candlestick patterns
+      // ------------------------------------
+      hammer,
+      invertedHammer,
+      dragonflyDoji,
+      piercingLine,
+      morningDojiStar,
+      morningStar,
+      threeWhiteSoldiers,
     ] = await Promise.all([
-      indicator.sma(4, price),
-      indicator.sma(7, price),
-      indicator.sma(9, price),
-      indicator.sma(12, price),
-      indicator.sma(14, price),
-      indicator.sma(20, price),
-      indicator.sma(50, price),
-      indicator.ema(4, price),
-      indicator.ema(7, price),
-      indicator.ema(9, price),
-      indicator.ema(12, price),
-      indicator.ema(14, price),
-      indicator.ema(20, price),
-      indicator.ema(50, price),
+      indicator.ao(
+        {
+          fastPeriod: 5,
+          slowPeriod: 34,
+        },
+        low,
+        high
+      ),
+      indicator.adx(14, close, high, low),
+      indicator.mfi(14, close, high, low, volume),
       indicator.rsi(14, price),
-      indicator.bb(14, price),
       indicator.ichimoku(
         {
           conversionPeriod: 9,
@@ -338,14 +398,152 @@ export class BaseStrategy {
         high,
         close
       ),
-      indicator.heikinashi(low, high, open, close, volume, date),
       indicator.roc(14, price),
       indicator.atr(14, low, high, close),
+      // ----
       indicator.psar(0.02, 0.2, high, low),
+      indicator.sma(4, price),
+      indicator.sma(7, price),
+      indicator.sma(9, price),
+      indicator.sma(12, price),
+      indicator.sma(14, price),
+      indicator.sma(20, price),
+      indicator.sma(50, price),
+      indicator.ema(4, price),
+      indicator.ema(7, price),
+      indicator.ema(9, price),
+      indicator.ema(12, price),
+      indicator.ema(14, price),
+      indicator.ema(18, price),
+      indicator.ema(20, price),
+      indicator.ema(50, price),
+      indicator.bb(14, price),
+      // ----
+      indicator.heikinashi(low, high, open, close, volume, date),
+      // ----
+      indicator.spinningTop(
+        open.slice(-1),
+        close.slice(-1),
+        high.slice(-1),
+        low.slice(-1)
+      ),
+      indicator.engulfingPattern(
+        open.slice(-2),
+        close.slice(-2),
+        high.slice(-2),
+        low.slice(-2)
+      ),
+      indicator.harami(
+        open.slice(-2),
+        close.slice(-2),
+        high.slice(-2),
+        low.slice(-2)
+      ),
+      indicator.marubozu(
+        open.slice(-1),
+        close.slice(-1),
+        high.slice(-1),
+        low.slice(-1)
+      ),
+      // ----
+      indicator.abandonedBaby(
+        open.slice(-5),
+        close.slice(-5),
+        high.slice(-5),
+        low.slice(-5)
+      ),
+      indicator.hangingMan(
+        open.slice(-5),
+        close.slice(-5),
+        high.slice(-5),
+        low.slice(-5)
+      ),
+      indicator.shootingStar(
+        open.slice(-5),
+        close.slice(-5),
+        high.slice(-5),
+        low.slice(-5)
+      ),
+      indicator.gravestoneDoji(
+        open.slice(-1),
+        close.slice(-1),
+        high.slice(-1),
+        low.slice(-1)
+      ),
+      indicator.darkCloudCover(
+        open.slice(-2),
+        close.slice(-2),
+        high.slice(-2),
+        low.slice(-2)
+      ),
+      indicator.eveningDojiStar(
+        open.slice(-3),
+        close.slice(-3),
+        high.slice(-3),
+        low.slice(-3)
+      ),
+      indicator.eveningStar(
+        open.slice(-3),
+        close.slice(-3),
+        high.slice(-3),
+        low.slice(-3)
+      ),
+      indicator.threeBlackCrows(
+        open.slice(-3),
+        close.slice(-3),
+        high.slice(-3),
+        low.slice(-3)
+      ),
+      // ----
+      indicator.hammer(
+        open.slice(-1),
+        close.slice(-1),
+        high.slice(-1),
+        low.slice(-1)
+      ),
+      indicator.invertedHammer(
+        open.slice(-1),
+        close.slice(-1),
+        high.slice(-1),
+        low.slice(-1)
+      ),
+      indicator.dragonflyDoji(
+        open.slice(-1),
+        close.slice(-1),
+        high.slice(-1),
+        low.slice(-1)
+      ),
+      indicator.piercingLine(
+        open.slice(-2),
+        close.slice(-2),
+        high.slice(-2),
+        low.slice(-2)
+      ),
+      indicator.morningDojiStar(
+        open.slice(-3),
+        close.slice(-3),
+        high.slice(-3),
+        low.slice(-3)
+      ),
+      indicator.morningStar(
+        open.slice(-3),
+        close.slice(-3),
+        high.slice(-3),
+        low.slice(-3)
+      ),
+      indicator.threeWhiteSoldiers(
+        open.slice(-3),
+        close.slice(-3),
+        high.slice(-3),
+        low.slice(-3)
+      ),
     ]);
 
     this.history.push({
       ...data,
+      ao,
+      adx,
+      mfi,
       sma4,
       sma7,
       sma9,
@@ -358,6 +556,7 @@ export class BaseStrategy {
       ema9,
       ema12,
       ema14,
+      ema18,
       ema20,
       ema50,
       rsi,
@@ -370,6 +569,24 @@ export class BaseStrategy {
       roc,
       atr,
       psar,
+      spinningTop,
+      engulfingPattern,
+      harami,
+      marubozu,
+      abandonedBaby,
+      hangingMan,
+      shootingStar,
+      gravestoneDoji,
+      darkCloudCover,
+      eveningDojiStar,
+      eveningStar,
+      threeBlackCrows,
+      hammer,
+      invertedHammer,
+      dragonflyDoji,
+      piercingLine,
+      morningStar,
+      threeWhiteSoldiers,
     });
   }
 
@@ -436,8 +653,17 @@ export class BaseStrategy {
         this.wallet.long &&
         (short.stopLoss || short.openShort || long.closeLong)
       ) {
+        // if (
+        //   this.trust(this.learn.loose, short.state) ||
+        //   this.trust(this.learn.loose, short.long)
+        // ) {
+        //   console.log(
+        //     `😱 ----------- We already loose ${TRUST_LEVEL} times, skip`
+        //   );
+        // } else {
         await this.closeLong(strategy);
         await this.save(strategy);
+        // }
       }
 
       // Sell signal && Take profit
@@ -445,19 +671,40 @@ export class BaseStrategy {
         this.wallet.short &&
         (long.stopLoss || long.openLong || short.closeShort)
       ) {
+        // if (
+        //   this.trust(this.learn.loose, short.state) ||
+        //   this.trust(this.learn.loose, short.long)
+        // ) {
+        //   console.log(
+        //     `😱 ----------- We already loose ${TRUST_LEVEL} times, skip`
+        //   );
+        // } else {
         await this.closeShort(strategy);
         await this.save(strategy);
+        // }
       }
 
       // Buy signal
       if (this.wallet.stable && short.openShort) {
+        // if (this.trust(this.learn.loose, short.state)) {
+        //   console.log(
+        //     `😱 ----------- We already loose ${TRUST_LEVEL} times, skip`
+        //   );
+        // } else {
         this.history[this.history.length - 1].short = short;
         await this.openShort(strategy);
+        // }
       }
 
       if (this.wallet.stable && long.openLong) {
+        // if (this.trust(this.learn.loose, long.state)) {
+        //   console.log(
+        //     `😱 ----------- We already loose ${TRUST_LEVEL} times, skip`
+        //   );
+        // } else {
         this.history[this.history.length - 1].long = long;
         await this.openLong(strategy);
+        // }
       }
     }
   }

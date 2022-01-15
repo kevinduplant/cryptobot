@@ -114,3 +114,284 @@ export async function psar(step, max, high, low) {
 
   return psar[psar.length - 1];
 }
+
+export async function adx(period, low, high, close) {
+  const adx = technicalindicators.adx({
+    high,
+    low,
+    close,
+    period,
+  });
+
+  return adx[adx.length - 1];
+}
+
+export async function mfi(period, low, high, close, volume) {
+  const mfi = technicalindicators.mfi({
+    high,
+    low,
+    close,
+    period,
+    volume,
+  });
+
+  return mfi[mfi.length - 1];
+}
+
+export async function ao(parameters, low, high) {
+  const ao = technicalindicators.awesomeoscillator({
+    ...parameters,
+    high,
+    low,
+  });
+
+  return ao[ao.length - 1];
+}
+
+export async function spinningTop(open, close, high, low) {
+  const bearish = technicalindicators.bearishspinningtop({
+    open,
+    close,
+    high,
+    low,
+  });
+  const bullish = technicalindicators.bullishspinningtop({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return { bearish, bullish };
+}
+
+export async function engulfingPattern(open, close, high, low) {
+  const bearish = technicalindicators.bearishengulfingpattern({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  const bullish = technicalindicators.bullishengulfingpattern({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return { bearish, bullish };
+}
+
+export async function marubozu(open, close, high, low) {
+  const bearish = technicalindicators.bearishmarubozu({
+    open,
+    close,
+    high,
+    low,
+  });
+  const bullish = technicalindicators.bullishmarubozu({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return { bearish, bullish };
+}
+
+export async function harami(open, close, high, low) {
+  const bearish = technicalindicators.bearishharami({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  const bullish = technicalindicators.bullishharami({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return { bearish, bullish };
+}
+
+export async function abandonedBaby(open, close, high, low) {
+  const abandonedBaby = technicalindicators.abandonedbaby({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return abandonedBaby;
+}
+export async function hangingMan(open, close, high, low) {
+  const hangingMan = technicalindicators.hangingman({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return hangingMan;
+}
+
+export async function shootingStar(open, close, high, low) {
+  const shootingStar = technicalindicators.shootingstar({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return shootingStar;
+}
+
+export async function gravestoneDoji(open, close, high, low) {
+  const gravestoneDoji = technicalindicators.gravestonedoji({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return gravestoneDoji;
+}
+
+export async function darkCloudCover(open, close, high, low) {
+  const darkCloudCover = technicalindicators.darkcloudcover({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return darkCloudCover;
+}
+
+export async function eveningDojiStar(open, close, high, low) {
+  const eveningDojiStar = technicalindicators.eveningdojistar({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return eveningDojiStar;
+}
+
+export async function eveningStar(open, close, high, low) {
+  const eveningStar = technicalindicators.eveningstar({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return eveningStar;
+}
+
+export async function threeBlackCrows(open, close, high, low) {
+  const threeBlackCrows = technicalindicators.threeblackcrows({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return threeBlackCrows;
+}
+
+export async function hammer(open, close, high, low) {
+  const bearish = technicalindicators.bearishhammerstick({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  const bullish = technicalindicators.bullishhammerstick({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return { bearish, bullish };
+}
+
+export async function invertedHammer(open, close, high, low) {
+  const bearish = technicalindicators.bearishinvertedhammerstick({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  const bullish = technicalindicators.bullishinvertedhammerstick({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return { bearish, bullish };
+}
+
+export async function dragonflyDoji(open, close, high, low) {
+  const dragonflyDoji = technicalindicators.dragonflydoji({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return dragonflyDoji;
+}
+
+export async function piercingLine(open, close, high, low) {
+  const piercingLine = technicalindicators.piercingline({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return piercingLine;
+}
+
+export async function morningDojiStar(open, close, high, low) {
+  const morningDojiStar = technicalindicators.morningdojistar({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return morningDojiStar;
+}
+
+export async function morningStar(open, close, high, low) {
+  const morningStar = technicalindicators.morningstar({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return morningStar;
+}
+
+export async function threeWhiteSoldiers(open, close, high, low) {
+  const threeWhiteSoldiers = technicalindicators.threewhitesoldiers({
+    open,
+    close,
+    high,
+    low,
+  });
+
+  return threeWhiteSoldiers;
+}
